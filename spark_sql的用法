@@ -1,0 +1,13 @@
+# Hive
+spark-sql的使用
+
+alias sparkcmd='spark-sql \
+        --master yarn \
+        --deploy-mode client \
+        --total-executor-cores 120 \
+        --num-executors 30 \
+        --executor-memory 16G \
+        --executor-cores 4 \
+        --driver-memory 20G \
+        --driver-cores 8 \
+        --name deal_with_data'
