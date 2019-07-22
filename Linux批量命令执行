@@ -1,0 +1,2 @@
+# H
+for ((i=7;i<=36;i++));do ssh hadoop${i} 'chmod -x /tmp/auto-del-2-days-ago-hdfs_dfs-datanode-*hprof.sh' ;done
