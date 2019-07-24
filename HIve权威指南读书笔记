@@ -1,1 +1,2 @@
-
+1. Hive 查询数据重定向到本地
+hive -S -e "select * from table" > /tmp/table # "-e" 指定sql语句，"-S"表示开启静默模式，可以去掉输出结果中的“OK”和“Time Taken”
