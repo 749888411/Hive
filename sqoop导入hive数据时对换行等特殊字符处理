@@ -1,0 +1,35 @@
+https://blog.csdn.net/captainjava/article/details/82625858
+
+2018年09月11日 15:01:02 grootblockchain 阅读数 1802
+使用场景：
+ 公司大数据平台ETL操作中，在使用sqoop将mysql中的数据抽取到hive中时，由于mysql库中默写字段中会有换行符，导致数据存入hive后，条数增多（每个换行符会多出带有null值得一条数据），导致统计数据不准确。
+
+ 
+解决办法：
+利用一下两个参数可以实现对换行等特殊字符的替换或者删除
+
+--hive-delims-replacement
+--hive-drop-import-delims
+参考官方文档
+
+Table 8. Hive arguments:
+
+Argument	Description
+--hive-home <dir>	Override $HIVE_HOME
+--hive-import	Import tables into Hive (Uses Hive’s default delimiters if none are set.)
+--hive-overwrite	Overwrite existing data in the Hive table.
+--create-hive-table	If set, then the job will fail if the target hive
+ 	table exits. By default this property is false.
+--hive-table <table-name>	Sets the table name to use when importing to Hive.
+--hive-drop-import-delims	Drops \n, \r, and \01 from string fields when importing to Hive.
+--hive-delims-replacement	Replace \n, \r, and \01 from string fields with user defined string when importing to Hive.
+--hive-partition-key	Name of a hive field to partition are sharded on
+--hive-partition-value <v>	String-value that serves as partition key for this imported into hive in this job.
+--map-column-hive <map>	Override default mapping from SQL type to Hive type for configured columns.
+ 
+
+使用方法，
+
+1、在原有sqoop语句中添加 --hive-delims-replacement “ ” 可以将如mysql中取到的\n, \r, and \01等特殊字符替换为自定义的字符，此处用了空格
+
+2、在原有sqoop语句中添加 --hive-drop-import-delims 可以将如mysql中取到的\n, \r, and \01等特殊字符丢弃
