@@ -1,0 +1,5 @@
+# Hive
+1. 原表建表时如果没有分区，后来想给表添加分区。操作如下：
+（1）新建个跟原表一样的分区表，只是添加分区。
+（2）通过insert into 的方式，将原表的数据添加到新的分区表中。
+insert into table course_partition PARTITION(ptday='2019-07-26') select * from  course;
