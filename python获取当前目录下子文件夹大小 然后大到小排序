@@ -1,0 +1,28 @@
+python获取当前目录下子文件夹大小 然后大到小排序 询问是否删除某些子文件夹
+</pre><p></p><p>用os.getcwd()获取当前路径</p><p>用os.listdir获取路径下的文件和文件夹</p><p><span style="color:rgb(51,51,51); font-family:arial,宋体,sans-serif,tahoma,'Microsoft YaHei'; font-size:14px; line-height:24px; background-color:rgb(243,255,236)">用os.popen('rm -rf /tmp/tmpabc')删除文件</span></p><p>2、代码如下：</p><p></p><pre name="code" class="python">#!/usr/bin/env python27
+#-*- coding:utf-8 -*-
+import os
+from os.path import join,getsize,exists,isfile,isdir
+def getdirsize(dir): #获取文件或文件夹大小
+    size=0L
+    if exists(dir):
+        if isfile(dir): 
+            size+=getsize(dir)            
+        else:
+            for root,dirs,files in os.walk(dir): #遍历文件夹并获取文件夹大小
+                size+=sum([getsize(join(root,name)) for name in files])
+    return size
+def getsizeStr(size): #转换文件大小为‘3.5KB’之类的字符串
+    if 0==size: return '0'
+    if size/1024.0<1: return '<1KB'
+    if size/1024.0**2<1:  return '%0.1fKB' % (size/1024.0)
+    if size/1024.0**3<1:  return '%0.1fMB' % (size/1024.0**2)
+    return '%0.3fG' % (size/1024.0**3)
+ 
+ 
+def getsortedfiles(dirname):    #把文件夹里的一级目录或文件按大到小排序
+    f_size=[(files,getdirsize(join(dirname,files))) for files in os.listdir(dirname)]
+    return sorted(f_size,key=lambda s:s[1],reverse=True)  #反序排序tuple组成的列表
+ ———————————————— 
+版权声明：本文为CSDN博主「waketzheng」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/jaket5219999/article/details/52997711
