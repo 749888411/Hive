@@ -1,0 +1,117 @@
+代码链接：https://www.cnblogs.com/shenghl/p/3946656.html
+
+在平常的生活中，我们会遇到下面这样的情况：
+
+你下载了一个比较大型的游戏（假设有10G），现在想跟你的同学一起玩，你需要把这个游戏拷贝给他。
+
+然后现在有一个问题是文件太大（我们不考虑你有移动硬盘什么的情况），假设现在只有一个2G或4G的优盘，该怎么办呢？
+
+有很多方法，例如winrar压缩的时候分成很多小卷，这里不累述。
+
+在学习python之后，我们自己就可以解决这个问题啦。
+
+我们可以自己写一个脚本去分割合并文件，将文件分割成适合优盘大小的小文件，在拷贝，然后再合并。
+
+ 
+
+下面是文件分割脚本：
+
+ 1 import sys,os
+ 2 
+ 3 kilobytes = 1024
+ 4 megabytes = kilobytes*1000
+ 5 chunksize = int(200*megabytes)#default chunksize
+ 6 
+ 7 def split(fromfile,todir,chunksize=chunksize):
+ 8     if not os.path.exists(todir):#check whether todir exists or not
+ 9         os.mkdir(todir)          
+10     else:
+11         for fname in os.listdir(todir):
+12             os.remove(os.path.join(todir,fname))
+13     partnum = 0
+14     inputfile = open(fromfile,'rb')#open the fromfile
+15     while True:
+16         chunk = inputfile.read(chunksize)
+17         if not chunk:             #check the chunk is empty
+18             break
+19         partnum += 1
+20         filename = os.path.join(todir,('part%04d'%partnum))
+21         fileobj = open(filename,'wb')#make partfile
+22         fileobj.write(chunk)         #write data into partfile
+23         fileobj.close()
+24     return partnum
+25 if __name__=='__main__':
+26         fromfile  = input('File to be split?')
+27         todir     = input('Directory to store part files?')
+28         chunksize = int(input('Chunksize to be split?'))
+29         absfrom,absto = map(os.path.abspath,[fromfile,todir])
+30         print('Splitting',absfrom,'to',absto,'by',chunksize)
+31         try:
+32             parts = split(fromfile,todir,chunksize)
+33         except:
+34             print('Error during split:')
+35             print(sys.exc_info()[0],sys.exc_info()[1])
+36         else:
+37             print('split finished:',parts,'parts are in',absto)
+下面是脚本运行的例子：
+
+我们在F有一个X—MEN1.rar文件，1.26G大小，我们现在把它分割成400000000bit(大约380M)的文件。
+
+Python 3.4.1 (v3.4.1:c0e311e010fc, May 18 2014, 10:45:13) [MSC v.1600 64 bit (AMD64)] on win32
+Type "copyright", "credits" or "license()" for more information.
+>>> ================================ RESTART ================================
+>>> 
+File to be split?F:\X-MEN1.rar
+Directory to store part files?F:\split
+Chunksize to be split?400000000
+Splitting F:\X-MEN1.rar to F:\split by 400000000
+split finished: 4 parts are in F:\split
+>>> 
+这是分割后的文件： 
+
+
+
+ 
+
+下面是文件合并脚本：
+
+ 
+
+ 1 import sys,os
+ 2 
+ 3 def joinfile(fromdir,filename,todir):
+ 4     if not os.path.exists(todir):
+ 5         os.mkdir(todir)
+ 6     if not os.path.exists(fromdir):
+ 7         print('Wrong directory')
+ 8     outfile = open(os.path.join(todir,filename),'wb')
+ 9     files = os.listdir(fromdir) #list all the part files in the directory
+10     files.sort()                #sort part files to read in order
+11     for file in files:
+12         filepath = os.path.join(fromdir,file)
+13         infile = open(filepath,'rb')
+14         data = infile.read()
+15         outfile.write(data)
+16         infile.close()
+17     outfile.close()
+18 if __name__=='__main__':
+19         fromdir = input('Directory containing part files?')
+20         filename = input('Name of file to be recreated?')
+21         todir   = input('Directory to store recreated file?')
+22         
+23         try:
+24             joinfile(fromdir,filename,todir)
+25         except:
+26             print('Error joining files:')
+27             print(sys.exc_info()[0],sys.exc_info()[1])
+运行合并脚本，将上面分割脚本分割的文件重组：
+
+Python 3.4.1 (v3.4.1:c0e311e010fc, May 18 2014, 10:45:13) [MSC v.1600 64 bit (AMD64)] on win32
+Type "copyright", "credits" or "license()" for more information.
+>>> ================================ RESTART ================================
+>>> 
+Directory containing part files?F:\split
+Name of file to be recreated?xman1.rar
+Directory to store recreated file?F:\
+>>> 
+运行之后可以看到F盘下生成了重组的xman.rar
