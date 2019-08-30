@@ -389,5 +389,59 @@ Send_email_text(subject,content,file_path,receive_email)
 版权声明：本文为CSDN博主「ksy_e」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
 原文链接：https://blog.csdn.net/kunshanyuZ/article/details/78824971
 
+马飞的附件发送邮件代码
+
+#! /usr/bin/env python 
+# -*- coding:utf-8 -*-
+
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+# from email.mime.image import MIMEImage
+# from email.mime.application import MIMEApplication
+
+
+class Pmain:
+    from_addr = '275060461@qq.com'
+    password = 'vcjehpuumuhibhgc'
+    mail_smtp = 'smtp.qq.com'
+
+    def __init__(self):
+        self.toaddr = []
+        self.mail = smtplib.SMTP(self.mail_smtp)
+        self.mail.login(self.from_addr, self.password)
+
+    def add_to_addr(self, mail_addr):
+        self.toaddr.append(mail_addr)
+
+    def send_mail(self, file):
+        msg = MIMEMultipart()
+        msg['Subject'] = '工作需要'
+        msg['From'] = self.from_addr
+        msg['To'] = ";".join(self.toaddr)
+        context = '工作需要'
+        text = MIMEText(context)
+        msg.attach(text)
+        tar_part = MIMEMultipart(open(file, 'rb').read())
+        file_name = os.path.basename(file)
+        tar_part.add_header('Content-Disposition', 'attachment', filename=file_name)
+        msg.attach(tar_part)
+        try:
+            self.mail.sendmail(self.from_addr, self.toaddr, msg.as_string())
+            self.mail.close()
+            return '发送成功'
+        except Exception as fff:
+            print(str(fff))
+            return '发送失败'
+
+
+if __name__ == '__main__':
+    m1 = Pmain()
+    m1.add_to_addr('mafei0728@163.com')
+    res = m1.send_mail(r'F:\电子书汇总\大数据\大数据.part01.rar')
+    print(res)
+
+
 
 Python os.walk() 方法：http://www.runoob.com/python/os-walk.html
