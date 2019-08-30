@@ -1,0 +1,393 @@
+https://blog.csdn.net/lezaimemecha/article/details/85162455
+
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+ 
+# smtplib是Python 用来发送邮件的模块
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.multipart import MIMEMultipart  # 构建邮件头信息，包括发件人，接收人，标题等
+from email.mime.text import MIMEText  # 构建邮件正文，可以是text，也可以是HTML
+from email.mime.application import MIMEApplication  # 构建邮件附件，理论上，只要是文件即可，一般是图片，Excel表格，word文件等
+from email.header import Header  # 专门构建邮件标题的，这样做，可以支持标题中文
+from email.mime.image import MIMEImage  # 处理图片信息
+ 
+import time
+import pandas as pd
+import pymysql.cursors
+import time
+ 
+time_start = time.time()
+ 
+ 
+def get_data():
+    """
+    从数据库中取数
+    :return:
+    """
+    config = {
+        'host': '101.132.***.***',
+        'port': 3306,
+        'user': '***',
+        'password': '***'
+    }
+ 
+    conn = pymysql.connect(**config)
+    cursor = conn.cursor()
+ 
+    sql_app = """
+    select
+    *
+    from
+    ***.***
+    limit
+    100;
+    """
+    df_a = pd.read_sql(sql_app, conn)
+    return df_a
+ 
+ 
+def plot_data(data):
+    """
+    输入原始数据进行分析，并输出Bi报表存放地址（自定义化）
+    :param data: 从get_data()函数中取到的原始数据
+    :return:
+    """
+ 
+ 
+ 
+# 定义一个字符串，内容就是HTML代码
+def get_simple_html_msg(df):
+    """
+    一般需求将图片和超链接放到里面(用于非动态数据，直接发送处理好的图片和网页链接)
+    :param df:
+    :return:
+    """
+    html_msg = \
+        """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Title</title>
+        </head>
+        <body>
+        <h1>这是一封python写的邮件，使用的是HTML格式构造正文</h1>
+        <h2>可以为文字添加超链接，比如：<a href="https://***">**</a></h2>
+        <hr>
+        <h3>还可以添加图片，比如下面这张</h3>
+        <img src="E:\code\_sample\_picture\***.jpg">
+        <h4>还可以添加第二章图片，比如下面这张</h4>
+        <img src="E:\code\_sample\_picture\***.jpg">
+        </body>
+        </html>
+        """
+    return html_msg
+ 
+ 
+def send_email(html_msg):
+    """
+    发送邮件的脚本，在邮件中可添加text文本，html文本和附件
+    :return:
+    """
+    # 邮件服务信息，公司
+    mail_host = "smtp.***.com"  # 设置服务器
+    mail_user = "***@***.com"  # 用户名
+    mail_pass = "***"  # 密码
+    # 邮件发送和接收人
+    sender = mail_user
+    receiver = ['***@***.com', '***@163.com']
+    # 邮件头信息
+    message = MIMEMultipart('related')
+    message['From'] = sender
+    message['To'] = ','.join(receiver)
+    message['Subject'] = Header('【Python Test】邮件测试')
+    # ①普通文本内容添加到邮件
+    content_text = MIMEText('Python 定时邮件发送测试成功...', 'plain', 'utf-8')
+    # message.attach(content_text)
+    # ②html 形式的内容添加到邮件(如果有② 则文本和图片不会显示在邮件正文中)
+    content_html = MIMEText(html_msg, "html", "utf-8")
+    message.attach(content_html)
+    # ③图片 形式的内容添加到邮件（包含在②中，否咋上传的是图片附件）
+    # fp = open(r'E:\code\_sample\_picture\***.jpg', 'rb')
+    # content_image = MIMEImage(fp.read())
+    # fp.close()
+    # content_image.add_header('Content-ID', '')
+    # message.attach(content_image)
+    # ④ 附件 形式的内容添加到邮件
+    excel_file_path = r'E:\***\***\3_Excel文档\1_AI开源项目调研_2018.10.29.xlsx'
+    attach_table = MIMEApplication(open(excel_file_path, 'rb').read())
+    attach_table.add_header('Content-Disposition', 'attachment', filename='我的附件.xlsx')
+    #  这样的话，附件名称就可以是中文的了，不会出现乱码
+    attach_table.set_charset('utf-8')
+    message.attach(attach_table)
+ 
+    # 发送邮件，测试成功，流程都是固定的：创建客户端，登陆，发送，关闭
+    try:
+        smtpObj = smtplib.SMTP()  # 实例化
+        smtpObj.connect(mail_host, 25)  # 25为 SMTP 端口号
+        smtpObj.login(mail_user, mail_pass)  # 邮箱登录
+        print('登录成功！')
+        smtpObj.sendmail(mail_user, receiver, message.as_string())  # 发送邮件
+        smtpObj.quit()  # 邮件退出
+        print("恭喜：邮件发送成功!")
+    except smtplib.SMTPException:
+        print("错误：无法发送邮件")
+ 
+ 
+if __name__ == '__main__':
+    # 从数据库取数并分析，输出dataframe
+    data = get_data()
+    # 将dataframe转化成html格式
+    html_msg = get_simple_html_msg(data)
+    # 发送邮件
+    send_email(html_msg)
+    # 计算耗时
+    time_end = time.time()
+    time_cost = str(round((time_end - time_start), ndigits=2))
+    print('time_cost:', time_cost + 's')
+ ———————————————— 
+版权声明：本文为CSDN博主「乐在么么茶」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/lezaimemecha/article/details/85162455
+
+
+
+定时发送邮件：
+
+
+# -*- coding: utf-8 -*-
+#!/usr/bin/env python 
+# @Time    : 2017/12/22 17:50
+# @Desc    :
+# @File    : mailtools.py
+# @Software: PyCharm
+import smtplib,time
+from email.mime.text import MIMEText
+#使用的邮箱的smtp服务器地址，这里是163的smtp地址
+mail_host="smtp.163.com"
+# 用户名
+mail_user="***"
+#密码
+mail_pass="***"
+#邮箱的后缀，网易就是163.com
+mail_postfix="163.com"
+ 
+ 
+def send_mail(to_list,sub,content):
+    me="<"+mail_user+"@"+mail_postfix+">"
+    msg = MIMEText(content, _subtype='plain', _charset='utf-8')
+    msg['Subject'] = sub
+    msg['From'] = me
+    msg['To'] = ";".join(to_list)                #将收件人列表以‘；’分隔
+    try:
+        server = smtplib.SMTP()
+        # 连接服务器
+        server.connect(mail_host)
+        # 登录操作
+        server.login(mail_user,mail_pass)
+        server.sendmail(me, to_list, msg.as_string())
+        server.close()
+        return True
+    except Exception, e:
+        return False
+ 
+ 
+'''
+定时函数默认60秒
+'''
+def re_exe(inc = 60):
+    while True:
+        # 邮件主题和邮件内容
+        # 这是最好写点中文，如果随便写，可能会被网易当做垃圾邮件退信
+        if  send_mail(['******@qq.com'],"删除","请按删除键"):
+            print "done!"
+        else:
+            print "failed!"
+        time.sleep(inc)
+ 
+if __name__ == '__main__':
+    # 发送1封，上面的列表是几个人，这个就填几
+    for i in range(100):
+        #输入定时时间
+        re_exe("echo %time%", 60)
+ ———————————————— 
+版权声明：本文为CSDN博主「代码帮」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/ITLearnHall/article/details/80676562
+
+
+
+# -*- coding: utf-8 -*-
+from email import encoders
+import os
+import traceback
+from email.header import Header
+from email.mime.text import MIMEText
+from email.utils import parseaddr, formataddr
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+ 
+ 
+# 中文处理
+def _format_addr(s):
+    name, addr = parseaddr(s)
+    return formataddr((Header(name, 'utf-8').encode(), addr))
+ 
+def send_email(to_addr_in,filepath_in):
+    # 邮件发送和接收人配置
+    from_addr = '*******@163.com'
+    smtp_server = 'smtp.163.com'
+    password = '********'  #这是你邮箱的第三方授权客户端密码，并非你的登录密码
+    to_addr = to_addr_in
+    to_addrs = to_addr.split(',')
+ 
+    msg = MIMEMultipart()
+    msg['From'] = _format_addr('Python爱好者 <%s>' % from_addr)        # 显示的发件人
+    # msg['To'] = _format_addr('管理员 <%s>' % to_addr)                # 单个显示的收件人
+    msg['To'] = ",".join(to_addrs)                                    # 多个显示的收件人
+    msg['Subject'] = Header('来自SMTP的问候……', 'utf-8').encode()      # 显示的邮件标题
+ 
+    # 需要传入的路径
+    # filepath = r'D:\test'
+    filepath = filepath_in
+    r = os.path.exists(filepath)
+    if r is False:
+        msg.attach(MIMEText('no file...', 'plain', 'utf-8'))
+    else:
+        # 邮件正文是MIMEText:
+        msg.attach(MIMEText('send with file...', 'plain', 'utf-8'))
+        # 遍历指定目录，显示目录下的所有文件名
+        pathDir = os.listdir(filepath)
+        for allDir in pathDir:
+            child = os.path.join(filepath, allDir)
+            print child.decode('gbk')  # .decode('gbk')是解决中文显示乱码问题
+ 
+            # 添加附件就是加上一个MIMEBase，从本地读取一个文件
+            with open(child, 'rb') as f:
+                # 设置附件的MIME和文件名，这里是txt类型:
+                mime = MIMEBase('file', 'xls', filename=allDir)
+                # 加上必要的头信息:
+                mime.add_header('Content-Disposition', 'attachment', filename=allDir)
+                mime.add_header('Content-ID', '<0>')
+                mime.add_header('X-Attachment-Id', '0')
+                # 把附件的内容读进来:
+                mime.set_payload(f.read())
+                # 用Base64编码:
+                encoders.encode_base64(mime)
+                # 添加到MIMEMultipart:
+                msg.attach(mime)
+    try:
+        server = smtplib.SMTP(smtp_server, 25)
+        # server.starttls()
+        server.set_debuglevel(1)  # 用于显示邮件发送的执行步骤
+        server.login(from_addr, password)
+        # print to_addrs
+        server.sendmail(from_addr, to_addrs, msg.as_string())
+        server.quit()
+    except Exception, e:
+        print "Error: unable to send email"
+        print traceback.format_exc()
+ 
+if __name__ == '__main__':
+    send_email('*******@qq.com,*******@163.com','D:\\test')
+ ———————————————— 
+版权声明：本文为CSDN博主「robot_sql」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/u012209894/article/details/78414638
+
+
+
+'''
+函数说明：Send_email_text() 函数实现发送带有附件的邮件，可以群发，附件格式包括：xlsx,pdf,txt,jpg,mp3等
+参数说明：
+    1. subject：邮件主题
+    2. content：邮件正文
+    3. filepath：附件的地址, 输入格式为["","",...]
+    4. receive_email：收件人地址, 输入格式为["","",...]
+'''
+def Send_email_text(subject,content,filepath,receive_email):
+    import smtplib
+    from email.mime.multipart import MIMEMultipart 
+    from email.mime.text import MIMEText 
+    from email.mime.application import MIMEApplication
+    sender = "发送方邮箱"
+    passwd = "填入发送方密码"
+    receivers = receive_email   #收件人邮箱
+    
+    msgRoot = MIMEMultipart() 
+    msgRoot['Subject'] = subject
+    msgRoot['From'] = sender
+    
+    if len(receivers)>1:
+        msgRoot['To'] = ','.join(receivers) #群发邮件
+    else:
+        msgRoot['To'] = receivers[0]
+    
+    part = MIMEText(content) 
+    msgRoot.attach(part)
+    
+    ##添加附件部分
+    for path in filepath:
+        if ".jpg" in path:
+            #jpg类型附件
+            jpg_name = path.split("\\")[-1]
+            part = MIMEApplication(open(path,'rb').read()) 
+            part.add_header('Content-Disposition', 'attachment', filename=jpg_name)
+            msgRoot.attach(part)
+        
+        if ".pdf" in path:
+            #pdf类型附件
+            pdf_name = path.split("\\")[-1]
+            part = MIMEApplication(open(path,'rb').read()) 
+            part.add_header('Content-Disposition', 'attachment', filename=pdf_name) 
+            msgRoot.attach(part)
+        
+        if ".xlsx" in path:
+            #xlsx类型附件
+            xlsx_name = path.split("\\")[-1]
+            part = MIMEApplication(open(path,'rb').read()) 
+            part.add_header('Content-Disposition', 'attachment', filename=xlsx_name)
+            msgRoot.attach(part)
+            
+        if ".txt" in path:
+            #txt类型附件
+            txt_name = path.split("\\")[-1]
+            part = MIMEApplication(open(path,'rb').read())
+            part.add_header('Content-Disposition', 'attachment', filename=txt_name)
+            msgRoot.attach(part)
+        
+        if ".mp3" in path:
+            #mp3类型附件
+            mp3_name = path.split("\\")[-1]
+            part = MIMEApplication(open(path,'rb').read()) 
+            part.add_header('Content-Disposition', 'attachment', filename=mp3_name) 
+            msgRoot.attach(part)
+            
+    try:
+        s = smtplib.SMTP()
+        s.connect("smtp.mail.aliyun.com") #这里我使用的是阿里云邮箱,也可以使用163邮箱：smtp.163.com
+        s.login(sender, passwd)
+        s.sendmail(sender, receivers, msgRoot.as_string())
+        print ("邮件发送成功")
+    except smtplib.SMTPException as e:
+        print("Error, 发送失败")
+    finally:
+        s.quit()
+
+#test code
+
+subject = "一波文件测试"
+content = "Python 邮件测试"
+jpg_path = "a\\b\\1.jpg"
+pdf_path = "c.pdf"
+txt_path = "d\\e\\f.txt"
+file_path = [jpg_path,pdf_path,txt_path]  #发送三个文件到两个邮箱
+receive_email = ["123@126.com","123@qq.com"]
+Send_email_text(subject,content,file_path,receive_email)
+ ———————————————— 
+版权声明：本文为CSDN博主「ksy_e」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/kunshanyuZ/article/details/78824971
+
+
+Python os.walk() 方法：http://www.runoob.com/python/os-walk.html
