@@ -1,0 +1,257 @@
+--conf spark.sql.shuffle.partitions=16 --conf spark.default.parallelism=16，具体根据文件大小数据量设置；
+
+设置参数：
+            # 开启自适应模式
+            self.spark.sql("spark.sql.adaptive.enabled=true")
+            self.spark.sql("spark.sql.adaptive.shuffle.targetPostShuffleInputSize=128M")
+            # 每个Map最大输入大小2G
+            self.spark.sql("set mapred.max.split.size=2048000000")
+            # 一个节点上split的至少的大小 ，决定了多个data node上的文件是否需要合并
+            self.spark.sql("set mapred.min.split.size.per.node=2048000000")
+            # 一个交换机下split的至少的大小，决定了多个交换机上的文件是否需要合并
+            self.spark.sql("set mapred.min.split.size.per.rack=2048000000")
+            # 启动 输入文件合并
+            self.spark.sql("set hive.hadoop.supports.splittable.combineinputformat=true")
+            # 执行Map前进行小文件合并
+            self.spark.sql("set hive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat")
+
+            # 开启非严格模式的动态分区
+            self.spark.sql("set hive.mapred.mode=strict")
+            self.spark.sql("set hive.exec.dynamic.partition.mode = nonstrict")
+
+            # 启用Snappy压缩
+            self.spark.sql("set hive.exec.compress.output=true")
+            self.spark.sql("set mapreduce.map.output.compress.codec=org.apache.hadoop.io.compress.SnappyCodec")
+
+            # 开启Map 端部分聚合
+            self.spark.sql("set hive.map.aggr=true")
+            # 启用数据倾斜负载均衡
+            self.spark.sql("set hive.groupby.skewindata=true")
+            # 在Map-only的任务结束时合并小文件
+            self.spark.sql("set hive.merge.mapfiles=true")
+            # 在Map-Reduce的任务结束时合并小文件
+            self.spark.sql("set hive.merge.mapredfiles=true")
+            # 合并后每个文件的大小，默认256000000
+            self.spark.sql("set hive.merge.size.per.task = 256*1000*1000")
+            # merge平均大小小于这个值的partition,默认为16MB
+            self.spark.sql("set hive.merge.smallfiles.avgsize= 128000000")
+            
+            
+            
+            
+            
+其他随便看看的参数：
+
+spark-sql -f  ' XXX.sql '每个文件的大小跟这两个参数强相关：--conf spark.sql.shuffle.partitions=16 --conf spark.default.parallelism=16，具体根据文件大小数据量设置；
+
+Sqoop import  导入到Hive,  -m  通常指定为1，指定-m 大于1的话，会产生多个文件，根据文件大小调整。
+
+beeline -f  'XXX.sql' 或者直接在Hive命令行窗口执行，跟这几个参数有关：但是这些参数，在集群环境中应该是设置好的，无需我们手动再设置。
+--set hive.merge.mapfiles=true;
+--set hive.merge.mapredfiles=true;
+
+--set mapreduce.input.fileinputformat.split.maxsize=256000000;
+--set mapreduce.input.fileinputformat.split.minsize=256000000;
+--set mapreduce.input.fileinputformat.split.minsize.per.node=256000000;
+--set mapreduce.input.fileinputformat.split.minsize.per.rack=256000000;
+
+--set hive.merge.smallfiles.avgsize=128000000;
+
+另外这几个参数，可以适当设置一下 mapper阶段做部分聚合，减少reduce阶段产生文件个数。
+
+set hive.map.aggr=true;
+set hive.groupby.skewindata=true;
+
+
+hiveContext.sql("set hive.mapred.supports.subdirectories=true")
+    hiveContext.sql("set mapreduce.input.fileinputformat.input.dir.recursive=true")
+    hiveContext.sql("set mapred.max.split.size=256000000")
+    hiveContext.sql("set mapred.min.split.size.per.node=128000000")
+    hiveContext.sql("set mapred.min.split.size.per.rack=128000000")
+    hiveContext.sql("set hive.hadoop.supports.splittable.combineinputformat=true")
+    hiveContext.sql("set hive.exec.compress.output=true")
+    hiveContext.sql("set mapred.output.compression.codec=org.apache.hadoop.io.compress.GzipCodec")
+    hiveContext.sql("set hive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat")
+
+    hiveContext.sql("set hive.merge.mapfiles=true")
+    hiveContext.sql("set hive.merge.mapredfiles=true")
+    hiveContext.sql("set hive.merge.size.per.task=256000000")
+    hiveContext.sql("set hive.merge.smallfiles.avgsize=256000000")
+
+    hiveContext.sql("set hive.groupby.skewindata=true")
+	
+	val my_df = my_temp1_df.unionAll(my_temp2_df).repartition(1000).persist()
+	
+set hive.exec.reducers.bytes.per.reducer=500000000;
+set hive.mapred.supports.subdirectories=true;
+set mapreduce.input.fileinputformat.input.dir.recursive=true;
+set mapred.max.split.size=256000000;
+set mapred.min.split.size.per.node=128000000;
+set mapred.min.split.size.per.rack=128000000;
+set hive.hadoop.supports.splittable.combineinputformat=true;
+set hive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
+set hive.merge.mapfiles=true;
+set hive.merge.mapredfiles=true;
+set hive.merge.size.per.task=256000000;
+set hive.merge.smallfiles.avgsize=256000000;
+set hive.groupby.skewindata=true;
+set hive.exec.dynamic.partition.mode=nonstrict;
+set hive.exec.parallel=true;
+set hive.exec.parallel.thread.number=32;
+SET hive.exec.compress.output=true;
+SET mapred.output.compression.codec=org.apache.hadoop.io.compress.SnappyCodec;
+SET mapred.output.compression.type=BLOCK;
+set hive.exec.compress.intermediate=true;
+set hive.intermediate.compression.codec=org.apache.hadoop.io.compress.SnappyCodec;
+set hive.intermediate.compression.type=BLOCK;
+
+spark-sql> set spark.sql.adaptive.enabled=true;     启用 Adaptive Execution ，从而启用自动设置 Shuffle Reducer 特性
+
+spark-sql> set spark.sql.adaptive.shuffle.targetPostShuffleInputSize=128000000;    设置每个 Reducer 读取的目标数据量，其单位是字节。默认64M，一般改成集群块大小
+
+Map操作之前合并小文件：
+
+setmapred.max.split.size=2048000000
+
+#每个Map最大输入大小设置为2GB（单位：字节）
+
+sethive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat
+
+#执行Map前进行小文件合并
+
+
+
+输出时进行合并：
+
+sethive.merge.mapfiles = true
+
+#在Map-only的任务结束时合并小文件
+
+sethive.merge.mapredfiles= true
+
+#在Map-Reduce的任务结束时合并小文件
+
+sethive.merge.size.per.task = 1024000000
+
+#合并后文件的大小为1GB左右
+
+sethive.merge.smallfiles.avgsize=1024000000
+
+#当输出文件的平均大小小于1GB时，启动一个独立的map-reduce任务进行文件merge
+
+
+
+如果需要压缩输出文件，就需要增加一个压缩编解码器，同时还有两个压缩方式和多种压缩编码器，压缩方式一个是压缩输出结果，一个是压缩中间结果，按照自己的需求选择，我需要的是gzip就选择的GzipCodec，同时也可以选择使用BZip2Codec、SnappyCodec、LzopCodec进行压缩。
+
+
+
+压缩文件：
+
+sethive.exec.compress.output=true;
+
+#默认false，是否对输出结果压缩
+
+setmapred.output.compression.codec=org.apache.hadoop.io.compress.GzipCodec;
+
+#压缩格式设置
+
+setmapred.output.compression.type=BLOCK;
+
+#一共三种压缩方式（NONE, RECORD,BLOCK），BLOCK压缩率最高，一般用BLOCK。
+
+
+
+我们可设置的属性还有很多，可以在hive的命令行中输入set；就会出现所有的属性，同时如果需要更细化的处理操作可以结合python编写UDF进行处理。
+————————————————
+版权声明：本文为CSDN博主「djd已经存在」的原创文章，遵循 CC 4.0 BY-SA 版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/djd1234567/article/details/51581201
+
+
+哪里会产生小文件 ?
+
+源数据本身有很多小文件
+动态分区会产生大量小文件
+reduce个数越多, 小文件越多
+按分区插入数据的时候会产生大量的小文件, 文件个数 = maptask个数 * 分区数
+小文件太多造成的影响 ?
+
+从Hive的角度看，小文件会开很多map，一个map开一个JVM去执行，所以这些任务的初始化，启动，执行会浪费大量的资源，严重影响性能。
+HDFS存储太多小文件, 会导致namenode元数据特别大, 占用太多内存, 制约了集群的扩展
+小文件解决方法
+
+方法一: 通过调整参数进行合并
+
+#每个Map最大输入大小(这个值决定了合并后文件的数量)
+set mapred.max.split.size=256000000;
+
+#一个节点上split的至少的大小(这个值决定了多个DataNode上的文件是否需要合并)
+set mapred.min.split.size.per.node=100000000;
+
+#一个交换机下split的至少的大小(这个值决定了多个交换机上的文件是否需要合并)
+set mapred.min.split.size.per.rack=100000000;
+
+#执行Map前进行小文件合并
+set hive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
+
+#===设置map输出和reduce输出进行合并的相关参数：
+
+#设置map端输出进行合并，默认为true
+set hive.merge.mapfiles = true
+
+#设置reduce端输出进行合并，默认为false
+set hive.merge.mapredfiles = true
+
+#设置合并文件的大小
+set hive.merge.size.per.task = 256*1000*1000
+
+#当输出文件的平均大小小于该值时，启动一个独立的MapReduce任务进行文件merge。
+set hive.merge.smallfiles.avgsize=16000000
+
+方法二: 针对按分区插入数据的时候产生大量的小文件的问题, 可以使用DISTRIBUTE BY rand() 将数据随机分配给Reduce，这样可以使得每个Reduce处理的数据大体一致.
+
+# 设置每个reducer处理的大小为5个G
+set hive.exec.reducers.bytes.per.reducer=5120000000;
+
+# 使用distribute by rand()将数据随机分配给reduce, 避免出现有的文件特别大, 有的文件特别小
+insert overwrite table test partition(dt)
+select * from iteblog_tmp
+DISTRIBUTE BY rand();
+
+方法三: 使用Sequencefile作为表存储格式，不要用textfile，在一定程度上可以减少小文件
+
+方法四: 使用hadoop的archive归档
+
+#用来控制归档是否可用
+set hive.archive.enabled=true;
+
+#通知Hive在创建归档时是否可以设置父目录
+set hive.archive.har.parentdir.settable=true;
+
+#控制需要归档文件的大小
+set har.partfile.size=1099511627776;
+
+#使用以下命令进行归档
+ALTER TABLE srcpart ARCHIVE PARTITION(ds='2008-04-08', hr='12');
+
+#对已归档的分区恢复为原文件
+ALTER TABLE srcpart UNARCHIVE PARTITION(ds='2008-04-08', hr='12');
+
+#::注意，归档的分区不能够INSERT OVERWRITE，必须先unarchive
+
+补充: hadoop自带的三种小文件处理方案 – Hadoop Archive，Sequence file和CombineFileInputFormat.
+
+Hadoop Archive
+
+Hadoop Archive或者HAR，是一个高效地将小文件放入HDFS块中的文件存档工具，它能够将多个小文件打包成一个HAR文件，这样在减少namenode内存使用的同时，仍然允许对文件进行透明的访问。
+
+Sequence file
+
+sequence file由一系列的二进制key/value组成，如果为key小文件名，value为文件内容，则可以将大批小文件合并成一个大文件。
+
+CombineFileInputFormat
+
+它是一种新的inputformat，用于将多个文件合并成一个单独的split，另外，它会考虑数据的存储位置。
+————————————————
+版权声明：本文为CSDN博主「骚年真骚」的原创文章，遵循 CC 4.0 BY-SA 版权协议，转载请附上原文出处链接及本声明。
+原文链接：https://blog.csdn.net/weixin_42582592/article/details/85084575
+	
