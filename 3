@@ -1,0 +1,552 @@
+目 录
+1.	概述	3
+1.1	适用范围	3
+1.2	术语说明	3
+2.	背景介绍	4
+3.	数据库设计规范	4
+3.1	Hive数据库	4
+3.1.1	DWI层	5
+3.1.2	DWR层	6
+3.1.3	DM层	8
+3.2	HBase建表规范	8
+3.3	Mongo建表规范	9
+3.4	外部表规范	9
+3.5	临时表规范	9
+4	ETL流程&规范	10
+4.1	I+R层数据处理概要图	10
+4.1.1	DWI ETL流程	10
+4.1.2	DWD ETL流程	12
+4.1.3	DWS ETL流程	13
+4.2	外部表ETL规范	14
+4.2.1	Hive on mongo	14
+4.2.2	Hive on hbase	16
+4.3	Hbase Key_Value使用	18
+4.3.1	HBase的RowKey设计	18
+4.3.2	imei360实践	18
+4.4	Hive数据拉链去重公共组件	21
+5	HQL 开发规范	21
+5.1	HQL 脚本规范	21
+5.2	HQL 作业命名规范	23
+
+ 
+
+1.	概述 
+1.1	适用范围
+本规范旨在为CBG数据底座OneData体系的统一数据建模和统一实施提供规范指导，适用于大数据环境模型的端到端设计、开发及质量约束。
+ 
+1.2	术语说明
+术语	英文全名	中文解释
+DWI	Data Warehouse Integration	公共接入层
+SDI	Source Data Integration	贴源数据层
+DWR	Data Warehouse Report	公共数据层
+DWD	Data Warehouse Detail	公共数据明细层
+DWS	Data Warehouse Summary	公共数据汇总层
+DM	Data Mart	数据集市层
+SAM	Subject Area Model	整体主题域模型
+CDM	Concept Data Model	单主题概念模型
+LDM	Logical Data Model	逻辑模型
+PDM	Physical Data Model	物理模型
+
+3.	数据库设计规范
+3.1	Hive数据库
+当前数据底座的平台，根据数据使用存储场景分有Oracle、IQ、Hive、Mongo、HBase、HANA、Vertica等，对应数据模型设计规范，根据平台略有差异。
+本规范主讲CBG数据底座涉及大数据Hadoop平台的模型，其数据分层架构、模型设计方法与传统数据仓库Oracle类似，离线的模型同样根据数据功能定位可分DWI、DWR、DM三层。
+
+3.1.1	DWI层
+1.	接入层 RAW
+	数据库命名
+raw_$Source_System_Name
+$ Source_System_Name为源系统名
+
+	表命名
+raw_$Source_Table_name_dt0_$Site(增量)
+raw_$Source_Table_name_$Site (全量)
+
+	$ Source_Table_name为源表名、$SITE 为站点名（2位国家编码）
+	由此层为源系统接入层表，命名原则上应是‘raw’+’源系统表名’。表命名长度限制在30字符以内，如源表名超长，适当缩写;
+	但如源系统没有表情况如消息文件方式接入，同样按如上规则创建表名；
+    
+分区规则
+1、每天每批次调度为一个分区, 存储历史分区，可回溯历史数据。
+2、数据分区，每个分区数据量建议数据量在亿以下；
+3、
+ 	T+1 一天一调
+建议时间分区，分区字段建议按数据导入周期时间命名为：l_date。存储格式为yyyy-mm-dd。同时建议用string类型，避免default分区造成数据报错，以及避免不同时间粒度不好判断情况。示例如下：
+Create table xx partitioned by(l_date String) stored as orcfile;
+
+ 	一天多调（待定）
+建议时间分区，分区字段建议按数据导入周期时间命名为：l_date, 存储格式为：yyyy-mm-dd。同时多调批次，按时间建立二级分区字段l_hour，指定小时分区字段存储格式为hh 如：00、01、02… (一天多调待定)
+Create table xx partitioned by(l_date String, l_hour String) stored as orcfile;
+
+	审计字段(到时分秒)
+dw_creation_date 记录创建时间(系统时间 yyyy-mm-dd hh:mm:ss)
+dw_last_modified_date 记录最后修改时间(系统时间 yyyy-mm-dd hh:mm:ss)
+
+2.	拉链层 DWI
+	数据库命名
+DWI_$Source_System_Name
+$ Source_System_Name为源系统名
+
+	表命名
+DWI_$Source_Table_Name_$SSID_$Site
+
+	$Source_Table_Name 为源表名、$SSID 为源系统ID、$SITE 为站点名（2位国家编码）
+
+    分区规则
+静态分区、分区字段l_status (I/U/S)、存储全量，active的数据。
+l: Insert 新增的分区数据
+U: update 更新的分区数据
+S: stable 稳定的分区数据
+
+	索引规则
+视dwi表使用场景而定（在可以预见到分区数据非常庞大的情况下，索引常常是优于分区的）。索引基于指定列提高Hive表的查询速度，按列只加载处理文件的一部分。
+一般最后更新时间dw_last_modified_date可考虑做为索引。
+
+	审计字段(到时分秒)
+dw_creation_date 记录创建时间(系统时间 yyyy-mm-dd hh:mm:ss)
+dw_last_modified_date 记录最后修改时间(系统时间 yyyy-mm-dd hh:mm:ss)
+
+3.1.2	DWR层
+	数据库命名
+主题层只要分3个数据库，分别如下：
+dwr_cbg (主题表库)
+dim_cbg (维表库)
+dwr_apd (补录表库)
+
+	表命名
+dwd_$Subject_$bussinfo_f (公共明细事实表)
+dws_$Subject_$bussinfo_f (公共汇总事实表)
+
+dwd_$Subject_$bussinfo_r(关系表)
+
+dwr_dim_$Subject_$bussinfo_d(维表)
+
+apd_$Subject _$bussinfo(补录表)
+…
+	$ Subject为CBG各主题，$bussinfo业务含义信息;
+	
+表命名后缀，一般事实表为_F , 关系表为_R , 维表为 _D。
+如出现跨主题域加工表，以主表为准命名。
+详细命名如下表格：
+ 
+ 
+	索引规则
+主题层根据使用场景，根据M层使用，指标计算设置索引。
+Hive索引有row group index 和 bloom filter index 两类，可以结合着使用。
+参考http:
+//lxw1234.com/
+archives/2016/04/632.htm
+
+	分区规则
+公共汇总层数据，ETL处理规则 DWD>DWS 一般都是按业务日期group by,原则上建议DWD层按业务分析的字段，根据数据分布情况，选取Group By字段做分区。
+
+	审计字段(到时分秒)
+dw_creation_date 记录创建时间(系统时间 yyyy-mm-dd hh:mm:ss)
+dw_last_modified_date 记录最后修改时间(系统时间 yyyy-mm-dd hh:mm:ss)
+3.1.3	DM层
+	数据库命名
+dm_$domain 
+$ domain指CBG各应用名，如dm_imei360, dm_mss, dm_chnl
+
+	表命名
+dm_$domain_$Analysis_Object_$bussinfo_F (事实表)
+dm_dim_$domain_$bussinfo_D (维表)
+
+$Analysis_Object： 分析对象
+$ domain为CBG各应用名，如imei360,mss,chnl,rtl
+
+3.2	HBase建表规范
+HBase主要应用于提升数据查询性能，面向业务应用的宽表服务，其理论列可达百万，对应列储存大小可以达到GB级别。
+HBase的database，对应是名字空间，创建命令样例为：
+hbase>create_namespace ‘dmp_dmtml’   
+
+hbase>create 'dmp_dmtml:dm_tml_imei360_soft_data_f', { NAME => 'info', COMPRESSION => 'snappy' },{NUMREGIONS => 1024, SPLITALGO => 'HexStringSplit'}
+
+HBase的命名规范
+	namespace命名
+dm_$domain (M层)
+dwr_cbg （R层）
+$ domain为应用领域名， 可以为如零售:retail、渠道chnl、服务service、混合域tml等业务产品名称
+
+	表命名
+	DM层：
+dm_$ domain _$bussinfo_f
+	$ domain为应用领域名，$bussinfo业务定义信息;
+	如出现跨主题域加工表，domain为TML。
+
+	DWR层：
+表命名规范同DWR层
+
+	为加速数据查询及写入，建议默认将数据做hash分布到多个region上，即创建表，默认带上如下参数，numregions结合数据规模、hbase集群具体而定（建议设置至少7节点）：
+create 'GidCross_Visit', 'cf', {NUMREGIONS => 17, SPLITALGO => 'HexStringSplit'}
+
+3.3	Mongo建表规范
+多维查询、高可用查询数据存储于Mongo。
+	数据库命名，以应用或者项目名称命名，如：
+Dm_$domain
+Dm_imei360
+Dm_chnl
+
+	表命名
+dm_$domain _$bussinfo_f
+	$ domain为应用名，$bussinfo业务定义信息;
+3.4	外部表规范
+仓库中各层库中都有可能要创建Hive on hbase/on mongo外部表。
+表命名格式：
+		$datalayer_$domain_$bussinfo_external
+
+描述：
+		$datalayer： dm层的为dm、dwr层的为dwr
+		$domain: 子产品/系统名
+		$bussinfo: 业务定义信息
+3.5	临时表规范
+在数据导入、计算过程中，为了必要的步骤，如必须创建外部表才能导入数据到Hive内标，如简化计算逻辑，我们会创建大量的临时表，为了统一使用、清理，我们制定如下创建规范，请大家用完即弃，弃后记得在代码里面清理释放，如未释放，我们将统一清理改TMP database里超过7日的临时表
+	数据库命名
+dm_tmp
+dwr_tmp
+dwi_tmp
+所有应用处理临时表都储存该database便于统一管理；
+	表命名
+根据数据处理所处层级，按如下规范：
+DM ETL临时表	dm_tmp	ETL_	_TMP	XXX临时表	[Schema]. [Prefix]_ [Domain]_[Business_info]_ [Suffix]
+DWR ETL临时表	dwr_tmp	ETL_	_TMP	XXX临时表	[Schema]. [Prefix]_ [Subject]_[Business_info]_ [Suffix]
+DWRI ETL临时表	dwi_tmp	ETL_	_TMP	XXX临时表	[Schema]. [Prefix]_ [SSID]_[Business_info]_ [Suffix]
+
+
+4.1.1	DWI ETL流程
+1)	需去重操作：
+ 
+1、	将接入层每天每批次调度结果数据dt0表文件，与前一调度DWI数据文件全量比对。
+2、	调用拉链去重主键，自动生成处理脚本。
+3、	将拉链后结果存储在DWI表
+4、	DWI表有3个分区， I（Insert）表示新增记录分区、 U（Update）表示更新记录分区、 S（Stable） 表示稳定的、不变的数据分区
+
+2)	无需去重，直接合并操作：
+ 
+1、读取接入层每天每批次调度结果数据dt0表
+2、增量合并到DWI表
+3、DWI表分区只有新增记录，I分区和S分区。
+
+3)	全量抽取操作：
+ 
+1、对于全量集成的表，从raw 直接 copy到 DWI
+2、DWI表全表只有一个分区，I分区
+
+4.1.2	DWD ETL流程
+ 
+1、	统一从DWI拉链层读取数据。
+2、	判断增量数据是否同批次通调：
+2.1 同批次通调，取增量数据（DWI表，I和U分区）做逻辑关联，取得当批次调度主题增量结果集。
+2.2 多批次非通调，如场景只有R层作业重跑，并且跑多天前I层调度的结果，通过dw_last_modified_date字段取增量做逻辑关联，得到当批次调度结果集。
+3、	结果集与目标表前一调度结果集全量文件比对。
+4、	调用拉链公共组件，把对应公共明细层需更新的记录、需新增的记录和不变的记录都处理好。
+5、	全量写入到DWD表。
+注*多批次非通调，经常碰到的场景如补数、R层回跑等，此为非正常场景。类似全量跑数场景，在设计作业时，ETL程序都要考虑日常增量和全量回跑追数据的场景，部署两套作业，分别为日常增量和全量。
+
+
+其中DWD层多表整合拉通处理，存在增量处理场景，一般场景分为两表及多表关联取增量。
+1）两表之间关系取增量，一般建议直接过滤增量数据即可。
+2）两表以上多表间关联，一般先以主表id为主，增量临时表将多表的与主表的增量id识别出来。
+ETL过程根据实际数据处理场景和数据量灵活处理。
+ 
+4.1.3	DWS ETL流程
+
+ 
+1、	统一从DWD读取数据,其中DWD 一般选取Group By字段设置分区
+2、	在DWS 按汇总层汇总所需，把对应分区的数据做逻辑汇总处理。
+3、	结果集与目标表前一调度结果集全量文件比对。
+4、	调用拉链公共组件，把对应公共汇总表更新的记录、新增的记录和不变的记录找到处理。
+5、	全量写入到DWS表。
+
+4.2	外部表ETL规范
+4.2.1	Hive on mongo 
+使用场景：将hive数据使用hadoop-streaming，通过python代码把数据读出来，数据写入更新到mongodb。
+
+Imei360 项目实践：
+1、	代码说明：将hive中对应的hdfs目录下的字段按照对应关系导入到mongodb中的
+collection中，同时按照设置的联合key去判断更新插入数据，如下截图所示：
+代码文件构成：
+ 
+
+	需要导出的hive的表结构：
+ 
+
+	mapper.py脚本设置说明：
+ 
+
+	setting.py脚本设置说明：
+ 
+
+	run.sh驱动脚本设置和说明：
+ 
+2、	样例代码hdfs目录位置：
+dmp_dw/dmp_dmtml/dm_tml_imei360_soft_data_f_to_mongo
+svn放置目录位置：
+xxx/task_script_dir/dmp_plt/dmp_dw/dmp_dmtml/dm_tml_imei360_soft_data_f_to_mongo
+
+4.2.2	Hive on hbase
+使用场景：将hive数据写入hbase。
+步骤：1、先创建hbase表，2、创建hive外部表 3、构建hive外部表与hbase映射关系 4、数据写入hive外部表
+
+Imei360项目实践：
+       1、代码目录构成：
+        
+2、hql脚本中hbase建表，hive建外部表映射hbase字段，插入hive外部表同步hbase
+    
+
+3、	样例代码
+hdfs目录位置
+dmp_dw/dmp_dmtml/ etl_dmp_dmtml_dm_tml_imei360_soft_data_f_external
+svn放置目录位置：
+xxx/task_script_dir/dmp_plt/dmp_dw/dmp_dmtml/ etl_dmp_dmtml_dm_tml_imei360_soft_data_f_external
+
+
+4.3	Hbase Key_Value使用
+4.3.1	HBase的RowKey设计
+1、HBase是三维有序存储的，通过rowkey（行键），column key（column family和qualifier）和TimeStamp（时间戳）这个三个维度可以对HBase中的数据进行快速定位。
+2、HBase中rowkey可以唯一标识一行记录，在HBase查询的时候，有两种方式：
+	通过get方式，指定rowkey获取唯一一条记录
+	通过scan方式，设置startRow和stopRow参数进行范围匹配
+	全表扫描，即直接扫描整张表中所有行记录
+3、Rowkey长度原则
+rowkey是一个二进制码流，可以是任意字符串，最大长度 64kb ，实际应用中一般为 10-100bytes，以 byte[] 形式保存，一般设计成定长。建议越短越好，不要超过16个字节。
+4.3.2	imei360实践
+使用场景：根据产品条码sn, 产品物理号类型，发货id, 箱单号查询手机产品整个生命周期的信息。
+数据量：70亿
+结果：毫秒级结果返回
+
+如下Hbase Key_Value查询实现方案图：
+ 
+4.6.2.1 索引表详细实现
+sn号：
+insert overwrite table dmp_dmtml.dm_tml_imei360_index_external
+select concat(substring(md5(concat('sn',sn)),0,4),'^',concat('sn',sn)),concat_ws(',',collect_set(concat(substring(md5(concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null'))),0,4),'^',concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null')))))
+from dmp_dmtml.dm_tml_imei360_f t 
+where sn is not null and  trim(sn)<>''
+group by sn;
+
+物理号：
+insert overwrite table dmp_dmtml.dm_tml_imei360_index_external
+select concat(substring(md5(concat('ph',phys_no)),0,4),'^',concat('ph',phys_no)),concat_ws(',',collect_set(concat(substring(md5(concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null'))),0,4),'^',concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null')))))
+from dmp_dmtml.dm_tml_imei360_f
+where phys_no is not null and trim(phys_no)<>''
+group by phys_no;
+
+供应中心发货id:
+insert overwrite table dmp_dmtml.dm_tml_imei360_index_external
+select concat(substring(md5(concat('de',delivery_id)),0,4),'^',concat('de',delivery_id)),concat_ws(',',collect_set(concat(substring(md5(concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null'))),0,4),'^',concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null')))))
+from dmp_dmtml.dm_tml_imei360_f 
+where delivery_id is not null and trim(delivery_id)<>'' 
+group by delivery_id;
+
+中转仓发货id:
+insert overwrite table dmp_dmtml.dm_tml_imei360_index_external
+select concat(substring(md5(concat('de',cen_delivery_id)),0,4),'^',concat('de',cen_delivery_id)),concat_ws(',',collect_set(concat(substring(md5(concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null'))),0,4),'^',concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null')))))
+from dmp_dmtml.dm_tml_imei360_f 
+where cen_delivery_id is not null and  trim(cen_delivery_id)<>''
+group by cen_delivery_id;
+
+本地工厂发货id:
+insert overwrite table dmp_dmtml.dm_tml_imei360_index_external
+select concat(substring(md5(concat('de',local_delivery_id)),0,4),'^',concat('de',local_delivery_id)),concat_ws(',',collect_set(concat(substring(md5(concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null'))),0,4),'^',concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null')))))
+from dmp_dmtml.dm_tml_imei360_f 
+where local_delivery_id is not null and trim(local_delivery_id)<>''
+group by local_delivery_id;
+
+箱单号：
+insert overwrite table dmp_dmtml.dm_tml_imei360_index_external
+select concat(substring(md5(concat('pa',packing_list_no)),0,4),'^',concat('pa',packing_list_no)),concat_ws(',',collect_set(concat(substring(md5(concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null'))),0,4),'^',concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null')))))
+from dmp_dmtml.dm_tml_imei360_f 
+where packing_list_no is not null and trim(packing_list_no)<>''
+group by packing_list_no;
+
+供应中心箱单号：
+insert overwrite table dmp_dmtml.dm_tml_imei360_index_external
+select concat(substring(md5(concat('pa',cen_packing_list_no)),0,4),'^',concat('pa',cen_packing_list_no)),concat_ws(',',collect_set(concat(substring(md5(concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null'))),0,4),'^',concat_ws('^',nvl(sn,'null'),nvl(center_order_id,'null'),nvl(phys_no,'null'),nvl(phys_type,'null')))))
+from dmp_dmtml.dm_tml_imei360_f 
+where cen_packing_list_no is not null and trim(cen_packing_list_no)<>''
+group by cen_packing_list_no;
+
+4.6.2.2 事实宽表详细实现
+INSERT INTO TABLE dmp_dmtml.dm_tml_imei360_f_external
+SELECT 
+CONCAT(SUBSTRING(MD5(CONCAT_WS('^',NVL(sn,'null'),NVL(center_order_id,'null'),NVL(phys_no,'null'),NVL(phys_type,'null'))),0,4),'^',CONCAT_WS('^',NVL(sn,'null'),NVL(center_order_id,'null'),NVL(phys_no,'null'),NVL(phys_type,'null'))) AS rowkey
+
+--DWI层拉链去重组件使用
+
+CREATE TABLE IF NOT EXISTS `dmp_dwi.dwi_tgmes_cqcmqcrecsr_new`(
+`factory` STRING COMMENT 'factory',
+`samp_batch_id` STRING COMMENT 'sample batch id',
+`sn` STRING COMMENT 'serial no',
+`samp_result` STRING COMMENT 'sample result (p:pass / f:fail)',
+`defect_code` STRING COMMENT 'defect code',
+`defect_type` STRING COMMENT 'defect type (maj:major defect / min:minor defect)',
+`remark` STRING COMMENT 'remark',
+`cmf_1` STRING COMMENT 'customized item 1',
+`cmf_2` STRING COMMENT '单台产品检验周期，分钟',
+`cmf_3` STRING COMMENT 'customized item 3',
+`cmf_4` STRING COMMENT 'customized item 4',
+`cmf_5` STRING COMMENT 'customized item 5',
+`cmf_6` STRING COMMENT 'customized item 6',
+`cmf_7` STRING COMMENT 'customized item 7',
+`cmf_8` STRING COMMENT 'customized item 8',
+`cmf_9` STRING COMMENT 'customized item 9',
+`cmf_10` STRING COMMENT 'customized item 10',
+`create_user_id` STRING COMMENT 'create user',
+`create_time` STRING COMMENT 'create time',
+`dw_creation_date` STRING COMMENT 'create time',
+`dw_last_modified_date` STRING COMMENT 'create time'
+)
+PARTITIONED BY (l_status STRING)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\001'
+STORED AS ORCFILE;
+
+FROM
+(SELECT TB.*,
+FROM_UNIXTIME(UNIX_TIMESTAMP()) AS dw_creation_date,
+FROM_UNIXTIME(UNIX_TIMESTAMP()) AS dw_last_modified_date
+FROM
+(
+SELECT *,
+ROW_NUMBER() OVER (DISTRIBUTE BY factory,samp_batch_id,sn SORT BY create_time DESC) as row_num
+FROM tgmes.raw_cqcmqcrecsr_dt0
+WHERE l_date>='${hiveconf:startDay}' AND l_date<='${hiveconf:endDay}'
+AND factory IS NOT NULL AND factory <> ''AND samp_batch_id IS NOT NULL AND samp_batch_id <> ''AND sn IS NOT NULL AND sn <> ''
+) TB
+WHERE TB.row_num = 1
+) TB1
+FULL OUTER JOIN dmp_dwi.dwi_tgmes_cqcmqcrecsr_new TB2
+ON (TB1.factory = TB2.factory AND TB1.samp_batch_id = TB2.samp_batch_id AND TB1.sn = TB2.sn)
+INSERT OVERWRITE TABLE dmp_dwi.dwi_tgmes_cqcmqcrecsr_new PARTITION(l_status = 'S')
+SELECT
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.factory ELSE TB2.factory END AS factory,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.samp_batch_id ELSE TB2.samp_batch_id END AS samp_batch_id,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.sn ELSE TB2.sn END AS sn,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.samp_result ELSE TB2.samp_result END AS samp_result,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.defect_code ELSE TB2.defect_code END AS defect_code,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.defect_type ELSE TB2.defect_type END AS defect_type,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.remark ELSE TB2.remark END AS remark,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_1 ELSE TB2.cmf_1 END AS cmf_1,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_2 ELSE TB2.cmf_2 END AS cmf_2,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_3 ELSE TB2.cmf_3 END AS cmf_3,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_4 ELSE TB2.cmf_4 END AS cmf_4,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_5 ELSE TB2.cmf_5 END AS cmf_5,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_6 ELSE TB2.cmf_6 END AS cmf_6,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_7 ELSE TB2.cmf_7 END AS cmf_7,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_8 ELSE TB2.cmf_8 END AS cmf_8,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_9 ELSE TB2.cmf_9 END AS cmf_9,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_10 ELSE TB2.cmf_10 END AS cmf_10,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.create_user_id ELSE TB2.create_user_id END AS create_user_id,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.create_time ELSE TB2.create_time END AS create_time,
+CASE WHEN TB1.factory IS NOT NULL THEN CASE WHEN TB2.factory IS NULL THEN TB1.dw_creation_date ELSE TB2.dw_creation_date END ELSE TB2.dw_creation_date END AS dw_creation_date,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.dw_last_modified_date ELSE TB2.dw_last_modified_date END AS dw_last_modified_date
+WHERE CASE WHEN TB1.factory IS NOT NULL THEN CASE WHEN TB2.factory IS NULL THEN 'I' ELSE 'U' END ELSE 'S' END = 'S'
+INSERT OVERWRITE TABLE dmp_dwi.dwi_tgmes_cqcmqcrecsr_new PARTITION(l_status = 'I')
+SELECT
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.factory ELSE TB2.factory END AS factory,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.samp_batch_id ELSE TB2.samp_batch_id END AS samp_batch_id,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.sn ELSE TB2.sn END AS sn,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.samp_result ELSE TB2.samp_result END AS samp_result,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.defect_code ELSE TB2.defect_code END AS defect_code,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.defect_type ELSE TB2.defect_type END AS defect_type,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.remark ELSE TB2.remark END AS remark,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_1 ELSE TB2.cmf_1 END AS cmf_1,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_2 ELSE TB2.cmf_2 END AS cmf_2,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_3 ELSE TB2.cmf_3 END AS cmf_3,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_4 ELSE TB2.cmf_4 END AS cmf_4,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_5 ELSE TB2.cmf_5 END AS cmf_5,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_6 ELSE TB2.cmf_6 END AS cmf_6,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_7 ELSE TB2.cmf_7 END AS cmf_7,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_8 ELSE TB2.cmf_8 END AS cmf_8,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_9 ELSE TB2.cmf_9 END AS cmf_9,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_10 ELSE TB2.cmf_10 END AS cmf_10,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.create_user_id ELSE TB2.create_user_id END AS create_user_id,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.create_time ELSE TB2.create_time END AS create_time,
+CASE WHEN TB1.factory IS NOT NULL THEN CASE WHEN TB2.factory IS NULL THEN TB1.dw_creation_date ELSE TB2.dw_creation_date END ELSE TB2.dw_creation_date END AS dw_creation_date,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.dw_last_modified_date ELSE TB2.dw_last_modified_date END AS dw_last_modified_date
+WHERE CASE WHEN TB1.factory IS NOT NULL THEN CASE WHEN TB2.factory IS NULL THEN 'I' ELSE 'U' END ELSE 'S' END = 'I'
+INSERT OVERWRITE TABLE dmp_dwi.dwi_tgmes_cqcmqcrecsr_new PARTITION(l_status = 'U')
+SELECT
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.factory ELSE TB2.factory END AS factory,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.samp_batch_id ELSE TB2.samp_batch_id END AS samp_batch_id,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.sn ELSE TB2.sn END AS sn,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.samp_result ELSE TB2.samp_result END AS samp_result,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.defect_code ELSE TB2.defect_code END AS defect_code,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.defect_type ELSE TB2.defect_type END AS defect_type,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.remark ELSE TB2.remark END AS remark,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_1 ELSE TB2.cmf_1 END AS cmf_1,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_2 ELSE TB2.cmf_2 END AS cmf_2,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_3 ELSE TB2.cmf_3 END AS cmf_3,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_4 ELSE TB2.cmf_4 END AS cmf_4,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_5 ELSE TB2.cmf_5 END AS cmf_5,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_6 ELSE TB2.cmf_6 END AS cmf_6,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_7 ELSE TB2.cmf_7 END AS cmf_7,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_8 ELSE TB2.cmf_8 END AS cmf_8,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_9 ELSE TB2.cmf_9 END AS cmf_9,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.cmf_10 ELSE TB2.cmf_10 END AS cmf_10,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.create_user_id ELSE TB2.create_user_id END AS create_user_id,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.create_time ELSE TB2.create_time END AS create_time,
+CASE WHEN TB1.factory IS NOT NULL THEN CASE WHEN TB2.factory IS NULL THEN TB1.dw_creation_date ELSE TB2.dw_creation_date END ELSE TB2.dw_creation_date END AS dw_creation_date,
+CASE WHEN TB1.factory IS NOT NULL THEN TB1.dw_last_modified_date ELSE TB2.dw_last_modified_date END AS dw_last_modified_date
+WHERE CASE WHEN TB1.factory IS NOT NULL THEN CASE WHEN TB2.factory IS NULL THEN 'I' ELSE 'U' END ELSE 'S' END = 'U'
+
+Hive开发规范
+1	编码规范
+1.	【MUST】代码头
+--owner:工号（姓名）
+--hwse: 工号（姓名）
+--is_rerun:0/1（是否可以重跑脚本）
+--gmt_create：创建日期（yyyy-mm-dd）
+--input_table:数据库名.输入表名
+--input_table:数据库名.输入表名
+--output:数据库名.输出表名
+--output:数据库名.输出表名
+--update by:工号（姓名）-日期（yyyy-mm-dd）
+2.	【MUST】生产作业禁用select *，count(*)
+3.	【MUST】DDL（建表、修改表）脚本作为单独文件，不允许在生产作业中定义DDL语句。 
+4.	【SHOULD】嵌套超过3层的子查询需要拆出来临时表
+5.	【SHOULD】同一个作业内的任务需有依赖性，完全独立的任务需拆成不同的作业。
+6.	【MUST】Select、from、where、group(distribute\sort\cluster) by、order by、having、limit 为一级子句，每个字句下的子句相对上层字句缩进。
+ 
+7.	【MUST】每层缩进4个空格键（可以设置tab为4个空格）。
+8.	【should】表必须有别名，’t’+连续数字，如t{0,1,2,3...}。子查询里的表名继承外层表别名，如外层子查询为t1，子查询里的表名为t1{0,1,2,3...}，保持顺序。
+ 
+9.	【MUST】引用字段需加表别名
+10.	【MUST】select中经过加工的字段必须定义别名
+11.	【MUST】select每个字段需要换行缩进，逗号’,’在字段前
+ 
+12.	【SHOULD】子查询和复杂逻辑计算需有注释，原则上30行之内必须有注释
+13.	【MUST】多条件组合每个条件需要换行
+ 
+14.	【should】case两个分支的情况下case end 同行，条件复杂时，then和条件字句相对when缩进
+15.	【should】case多条件分支when 必须换行，when条件较多时，和条件字句相对when缩进 否则when then 同一行
+ 
+16.	【must】子查询和复杂条件函数的左括号和右括号有相同的缩进
+ 
+17.	【must】关键字需要大写，其余除了特别含义外全部小写
+18.	【must】表名需有库名前缀，无论是否在当前库。
+19.	【must】文件编码统一使用UTF-8
+
+2	DDL文件规范
+1.	【must】实体表ddl文件名和表名必须一致，后缀为”.ddl”，视图为视图名称+”.view”，统一小写
+2.	【must】视图名称
+	源表和视图不在同一个库：
+视图名称=库名称_表名称_描述
+	源表和视图在同一个库：
+视图名称=表名称_描述
+3.	【must】文件头
+--owner:工号（姓名）
+--hwse: 工号（姓名）
+--gmt_create：创建日期（yyyy-mm-dd）
+4.	【must】每个字段单独一行，逗号统一在字段前面
+5.	【must】每个字段和表须有comment
+6.	【must】建表字段和表名增加``
+7.	【must】表名和字段名统一大写，hive关键字大写
+8.	【should】字段分隔符如没有特殊需要统一使用\x001，并必须指明列分隔符  如：ROW FORMAT DELIMITED FIELDS TERMINATED BY '\001'
+9.	【should】表存储格式需要指明，没有特殊需求使用ORCFILE 如：STORED AS ORCFILE
+10.	【must】字段类型根据实际含义来定义，不允许全部string
+11.	【must】I层按日期分区表，一级分区字段：L_DATE，类型string ，格式yyyy-mm-dd  如：PARTITIONED BY(L_DATE STRING COMMENT’yyyy-mm-dd’)
+12.	【must】表创建前需要判断表是否存在，即使用:CREATE TABLE IF NOT EXISTS
+13.	【must】表名需要有库名前缀，无论是否是当前库。
+14.	【must】文件编码统一使用utf-8
+15.	【should】其他参看“CBG数据底座OneData－模型命名规范V1.2.doc
