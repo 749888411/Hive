@@ -264,3 +264,204 @@ oneData体系的指导思想是围绕“四个统一”构建规范、可共享�
 	
 三、样例：FH123456	促销员门店覆盖率	促销员门店覆盖率	零售		占比		%	YZ123456_002/YZ123456_001	"YZ123456_001;
 YZ123456_002"	N	YW123456		
+
+
+CBG数据底座OneData
+模型命名规范
+目 录
+1.	概述	3
+1.1	适用范围	3
+1.2	术语说明	3
+2.	主题命名规范	4
+3.	应用命名规范	5
+4.	表命名规范	6
+4.1	命名原则	6
+4.2	命名格式	7
+5.	字段命名规范	8
+5.1	字段命名原则	8
+5.2	字段命名场景示例	9
+6.	字段类型使用规范	10
+7.	SCHEMA和表空间使用规范	11
+8.	统一的词根	12
+
+ 
+1.	概述 
+1.1	适用范围
+	 本规范旨在为CBG数据底座OneData体系的统一模型命名提供规范指导，适用于数据建模的主题、表、字段、字符类型、数据库、schema、表空间、索引等命名规范，统一建模语言，保证模型理解一致性、消费便利性。
+
+1.2	术语说明
+术语	英文全名	中文解释
+SDI	Source Data Integration	贴源数据层
+DWR	Data Warehouse Report	公共数据层
+DWD	Data Warehouse Detail	公共数据明细层
+DWS	Data Warehouse Summary	公共数据汇总层
+DM	Data Mart	数据集市层
+SAM	Subject Area Model	整体主题域模型
+CDM	Concept Data Model	单主题概念模型
+LDM	Logical Data Model	逻辑模型
+PDM	Physical Data Model	物理模型
+
+2.	主题命名规范
+CBG数据湖当前涉及CBG共7个领域流程，39个主题的数据。使用主题或对象命名，优先使用英文缩写。
+领域	主题/对象	主题英文名全称	主题英文名	备注
+MSS	渠道	CHANNEL	CHNL	
+MSS	零售	RETAIL	RTL	
+MSS	营销	MARKETING	MKT	
+MSS	服务	SERVICE	SV	
+MSS	交易	DEAL	DEAL	
+MSS	电商	E-COMMERCE	EC	
+ISC	销售订单	SALE ORDER	SO	
+ISC	采购	PROCUREMENT	PROC	
+ISC	仓储	WAREHOUSE	WH	
+ISC	计划	PLAN	PLAN	
+ISC	运输	TRANSPORT	TRANS	
+ISC	制造	MANUFACTURING	MFG	
+IPD	需求规划	DEMAND PLANNING	DP	
+IPD	项目研发	PROJECT DEVELOPMENT	PD	
+IPD	功能架构	FUNCTION ARCHITECTURE	FA	
+IPD	研发实现	R & D IMPLEMENTATION	RDI	
+IPD	测试认证	TEST&CERTIFICATION	TC	
+IT	IT公共	IT COMMON	ITCOMM	
+财经	应收	ACCOUNTS RECEIVABLE	AR	
+财经	应付	ACCOUNTS PAYABLE	AP	
+财经	存货	EXISTING STOCK	ES	
+财经	资金	CASH FLOW	CF	
+财经	税务	TAX	TAX	
+财经	定价	PRICE	PR	
+财经	信用	CREDIT	CR	
+财经	预算预测	BUDGETING & FORECASTING	BF	
+用户	用户声音	VOICE OF CONSUMER	VOC	
+用户	使用行为	USE BEHAVIOR	UB	设备使用行为/
+APP使用行为
+HR	招聘	RECRUITING	RECRU	
+HR	绩效	PERFORMANCE	PERF	
+HR	培训	TRAINING	TRN	
+HR	薪酬	SALARY	SALY	
+HR	考勤	ATTENDANCE	ATND	
+HR	员工关系	EMPLOYEE RELATIONS	ER	
+360	IMEI	IMEI	IMEI	
+360	SKU	SKU	SKU	
+360	用户	CONSUMER	CONS	
+360	客户	CUSTOMER	CUST	
+360	合同	CONTRACT	CON	
+
+3.	应用命名规范
+集市层面向应用，每个应用命名需标准化，统一用应用名缩写。当前CBG应用领域有4个IOC，分别MSS IOC、IPD IOC、HONOR IOC、ISC IOC。 
+应用会随业务需求不断扩展增加，如下表格为存量应用名，如新增应用需确认命名，并做好登记，并且有对应CI。
+应用中文名	应用英文名	应用名	所属IOC	备注
+渠道分析	CHANNEL	CHNL	MSS	
+零售分析	RETAIL	RTL	MSS	
+新零售分析	NEW_RETAIL	NEW_RTL	MSS	
+营销分析	MARKETING	MKT	MSS	
+服务分析	SERVICE	SV	MSS	
+交易分析	DEAL	DEAL	MSS	
+电商分析	E-COMMERCE	EC	MSS	
+综合管理分析	MSS_DASHBOARD	MSSDB	MSS	
+HR分析	HUMAN_RESOURCES	HR	MSS	
+财经分析	FINANCIAL_ANALYSIS	FIN	MSS	
+GTM分析	GTM_ANALYSIS	GTM	MSS	
+CISC IOC	CISC_IOC	CISC	ISC	
+
+4.	表命名规范
+4.1	命名原则
+1.	事务事实表以“XX事实表”命名，维度表以“XX维表”命名，关系表以“XX与XX的关系表”命名，视图以“XX视图”命名，周期汇总表以“XX（天/周/月）汇总表”，累计快照以“XX累计快照表”。
+2.	对于需要建立扩展表的，一律以XX扩展表来命名。对于实体的自我关联实体，命名采用该实体的名称加关联，如产品实体的关联关系命名为：产品关联扩展表。
+3.	头行表形式的，统一命名“XX头事实表”， “XX行事实表”或“XX明细事实表”，对应物理名“XXX_HEAD_F”, “XXX_LINE_F”或“XXX_DTL_F”
+4.	名称尽量使用中文，必要情况下可以使用预定的英文缩略语，英文字母全部为大写方式。
+5.	表名和字段名英文全部大写，‘_’下划线连接，不能超过30位。
+6.	能用全称一定用全称，如果超长，从第一个单词开始进行缩写，直至少于30位。
+7.	主题和业务对象、应用专有名严格按标准编码命名。
+8.	表命名中，Business_info按统一词根命名，要体现业务含义，一般命名先体现对象，再维度、类型、描述等信息。
+9.	表名称必须是唯一的，不允许有两个及以上相同名称的表。
+10.	表名逻辑描述需标注清楚那些字段是物理主键，那些字段是逻辑主键。
+11.	所有的实体命名都采用名词，不要用动词给实体进行命名。
+12.	所有的实体表，都要创建公有同义词，确保整个数据库对象唯一，方便表对象管理。（oracle）
+13.	表对应的分区、主键、索引、序列物理命名规则：(oracle)
+a)	唯一索引：“schema.物理表名_U”、“schema.物理表名_U1”、“schema.物理表名_U2” …
+b)	普通索引：“schema.物理表名_N”、“schema.物理表名_N1”、“schema.物理表名_N2” …
+c)	主键：“schema.物理表名_PK”
+d)	序列：“schema.物理表名_S”、“schema.物理表名_S1”、“schema.物理表名_S2” …
+e)	分区：“P_xxx”，xxx表示分区的范围或对应数据业务含义。
+14.	逻辑模型物理化时，如ETL场景多、逻辑复杂，物理模型需拆分多个实体表的。实体表命名需体现业务场景。
+15.	ETL临时表，不需要落实到Erwin模型，并且命名统一以“ETL_XXX_TMP”格式。XXX建议优先使用“目标表名_数字”，避免表重复及被误覆盖。
+16.	ETL增量快照表（记录每批调度增量所更新的数据文件），不需要落实到Erwin模型，并且命名统一以“目标表_DELTA”格式。举例：目标表 dwd_rtl_asset_to_dtl_f,  增量快照 dwd_rtl_asset_to_dtl_f_delta。
+17.	若集成外部DW/BI系统R/M层数据，先入湖按数据层级分别放到DWRPUB、DMPUB schema； 然后主题层统一在DWRCBG建模,表按CBG数据底座规范重新命名使用。
+4.2	命名格式
+Oracle表命名规范：
+ 
+ 
+Hadoop命名规范：
+5.	字段命名规范
+5.1	字段命名原则
+1.	优先使用业务术语体现字段的含义。
+2.	对于相同对象，不同业务表述字段，需增加前/后缀约定，清晰体现字段表述的业务含义。 如源合同号、华为合同号、客户合同号等。
+3.	逻辑字段如不足够清楚表达业务含义，需在字段comment详细描述。
+4.	逻辑字段名不能全部英文，除非特定的业界通用的专有名词。
+5.	逻辑字段名不可出现特殊字符（括号、百分比等）。
+6.	表的业务编码字段内容英文原则上统一大写。
+7.	表字段在模型设计先后顺序，字段内容类型一般要求按物理主键、业务主键、维度、度量、其它属性、审计字段。
+8.	时间字段，精度到天的命名“XXX日期”, 精度包括时分秒的命名“XXX时间”。
+9.	对于多来源的事实字段、布尔值字段、枚举值字段，除了在备注说清楚字段业务含义，同时comment必须增加说明对应字段值的数据标准。
+10.	事实表中维度字段名，命名以所引用的公共维表或特有维为准。
+11.	如数仓模型中直接引用源业务表维度事实字段，对应字段命名“源+XXX”。如源发货城市、源到货国家。
+12.	如表中有多个维度字段，并且都是对应同一个维表（公共维表或主题特有维度），则维度事实命名，原则上在维度字段加业务定语前缀，区分不同的业务含义。
+13.	集成外部DWBI系统R/M层数据（如财经BI）后，按CBG底座重新匹配模型，如涉及外部DWBI系统专有词根的需识别并录入词根管理工具，字段命名以DAP词根管理工具自动生成为准。
+5.2	字段命名场景示例
+场景	字段类型	命名示例
+度量类相关字段，参考指标命名	数量类	xx个数、xx数量、xx单数、xx条数、xx台数
+	金额类	xx金额、xx费用
+	周期类	xx周期、xx时长
+	比例	xx率、xx比例、xx占比
+增加后缀体现数据分类&含义	维表键值	xx KEY
+	源系统内码类，日志号、流水号	xx ID
+	业务编码，有一定业务规则/信息	xx编号
+	标志类，布尔类型，只有Y/N两种取值	是否xx
+	日期（包含时间）、时间戳	xx日期（天）、xx时间、时间戳（时分秒）
+	常用	xx合同号、xx版本号
+	类型、状态等	xx类型、xx状态
+	名称类	xx名称、xx中文名称、xx英文名称
+其他约定俗成	“分类”类命名优先级	“类型”->“类别”->“分类”
+	不包含非规范中文	如标点符号、空格、斜线、减号等
+	同音字使用	如“ 账”和“帐”在模型中均为“账”
+
+6.	字段类型使用规范
+6.1	oracle字段类型
+1)	字段类型统一原则
+	相同或相似的字段，其数据类型统一
+	度量一般number或data类型
+	原则来源于源业务系统的字段，字符长度统一以源为参照
+2)	数据类型定义统一
+	数值类（金额、次数、利率等）：number类型
+1)	整型：number
+2)	小数: 一般用2位精度number(38,2),如果精度不满足，则使用10位精度 number(38,10)。
+	日期/时间类：DATE
+	字符类：统一用可变类型 VARCHAR2()，按分段长度方式定义：
+1)	1, 2,
+2)	10, 20, 50,
+3)	100, 200, 500,
+4)	1000, 2000, 4000
+字段长度根据数据存储实际情况，不能随意设计长度。把握不准的，根据源系统，匹配数仓相近的长度区间。
+
+6.2	Hive 字段类型
+Hive字段类型，统一为2类，数值型、字符型。
+	数值类（金额、次数、利率等）：
+1)	整型：优先使用int，如长度不满足，则使用bigint
+2)	小数: 优先使用float, 如精度不满足，则使用double。
+	日期/时间类：string
+	字符类：string 
+
+6.3	Oracle 与 Hive 数仓字段类型对照
+字段类型	oracle	hive	转换操作	备注
+数值	number	int	直接转	数值范围 -2147483648～2147483647
+	number	bigint	手工调整	数值范围 -9223372036854775808～9223372036854775807
+	number(38,2)	float	直接转	数值范围 -3.4*10(-38)～3.4*10(38)，7位有效数字
+	number(38,10)	double	直接转	数值范围 -1.7*10(-308)～1.7*10(308)，15位有效数字
+日期&时间	Date	string	直接转	　
+字符	varchar2(XX)	string	直接转	　
+
+7.	Schema和表空间使用规范（oracle）
+ 
+ 
+8.	统一的词根
+	所有的表、表字段英文命名都统一通过词根库，在Erwin映射出来。在输出创建表DDL语句前，必须所有命名的词都要维护到词根库。词根库由各业务数据管家统一管理。
+词根库功能在DAP平台维护，设计模型所需使用词根请统一从DAP平台下载使用：
